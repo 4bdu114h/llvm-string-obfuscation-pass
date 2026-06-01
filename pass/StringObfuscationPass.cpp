@@ -1,3 +1,6 @@
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
@@ -10,7 +13,29 @@ namespace {
 class StringObfuscationPass : public PassInfoMixin<StringObfuscationPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
-    errs() << "Hello from StringObfuscationPass!\n";
+
+    errs() << "=== String Scan Started ===\n";
+
+    for (GlobalVariable &GV : M.globals()) {
+
+      if (!GV.hasInitializer())
+        continue;
+
+      Constant *Init = GV.getInitializer();
+
+      auto *DataArray = dyn_cast<ConstantDataArray>(Init);
+
+      if (!DataArray)
+        continue;
+
+      if (!DataArray->isString())
+        continue;
+
+      errs() << "Found string: ";
+
+      errs() << DataArray->getAsString() << "\n";
+    }
+
     return PreservedAnalyses::all();
   }
 };
