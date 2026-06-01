@@ -6,9 +6,23 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <vector>
+
 using namespace llvm;
 
 namespace {
+
+std::vector<uint8_t> encryptString(StringRef Str) {
+  std::vector<uint8_t> Result;
+
+  uint8_t Key[] = {0x12, 0x34, 0x56};
+
+  for (size_t i = 0; i < Str.size(); i++) {
+    Result.push_back(static_cast<uint8_t>(Str[i]) ^ Key[i % 3]);
+  }
+
+  return Result;
+}
 
 class StringObfuscationPass : public PassInfoMixin<StringObfuscationPass> {
 public:
@@ -31,9 +45,19 @@ public:
       if (!DataArray->isString())
         continue;
 
-      errs() << "Found string: ";
+      StringRef Original = DataArray->getAsString();
 
-      errs() << DataArray->getAsString() << "\n";
+      errs() << "Original: " << Original << "\n";
+
+      auto Encrypted = encryptString(Original);
+
+      errs() << "Encrypted Bytes: ";
+
+      for (auto Byte : Encrypted) {
+        errs() << static_cast<int>(Byte) << " ";
+      }
+
+      errs() << "\n\n";
     }
 
     return PreservedAnalyses::all();
