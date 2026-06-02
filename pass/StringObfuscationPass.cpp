@@ -1,9 +1,11 @@
-#include "llvm/IR/Type.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/Type.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
@@ -32,6 +34,14 @@ public:
 
     errs() << "=== String Scan Started ===\n";
 
+    LLVMContext &Ctx = M.getContext();
+
+    Type *PtrTy = PointerType::get(Ctx, 0);
+
+    FunctionType *DecodeTy = FunctionType::get(PtrTy, {PtrTy}, false);
+
+    FunctionCallee DecodeFunc = M.getOrInsertFunction("decode", DecodeTy);
+
     for (GlobalVariable &GV : M.globals()) {
 
       if (!GV.hasInitializer())
@@ -51,16 +61,43 @@ public:
 
       auto Encrypted = encryptString(Original);
 
-      ArrayType *ArrayTy =
-          ArrayType::get(Type::getInt8Ty(M.getContext()),
-                        Encrypted.size());
-
       Constant *NewInitializer =
           ConstantDataArray::get(M.getContext(), Encrypted);
 
       GV.setInitializer(NewInitializer);
 
       errs() << "Replaced string: " << GV.getName() << "\n";
+
+      for (User *U : GV.users()) {
+
+        auto *Inst = dyn_cast<Instruction>(U);
+
+        if (!Inst)
+          continue;
+
+        errs() << "Instruction found:\n";
+        errs() << *Inst << "\n";
+
+        IRBuilder<> Builder(Inst);
+
+        Value *StrPtr = Builder.CreateBitCast(&GV, PointerType::get(Ctx, 0));
+
+        Value *Decoded =
+            Builder.CreateCall(DecodeFunc, {StrPtr}, "decoded_str");
+
+        if (auto *Call = dyn_cast<CallInst>(Inst)) {
+
+          for (unsigned i = 0; i < Call->arg_size(); i++) {
+
+            if (Call->getArgOperand(i) == &GV) {
+
+              Call->setArgOperand(i, Decoded);
+
+              errs() << "Replaced call argument\n";
+            }
+          }
+        }
+      }
     }
 
     return PreservedAnalyses::all();
