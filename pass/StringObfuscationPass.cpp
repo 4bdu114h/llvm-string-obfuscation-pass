@@ -1,3 +1,5 @@
+#include "llvm/IR/Type.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
@@ -47,17 +49,18 @@ public:
 
       StringRef Original = DataArray->getAsString();
 
-      errs() << "Original: " << Original << "\n";
-
       auto Encrypted = encryptString(Original);
 
-      errs() << "Encrypted Bytes: ";
+      ArrayType *ArrayTy =
+          ArrayType::get(Type::getInt8Ty(M.getContext()),
+                        Encrypted.size());
 
-      for (auto Byte : Encrypted) {
-        errs() << static_cast<int>(Byte) << " ";
-      }
+      Constant *NewInitializer =
+          ConstantDataArray::get(M.getContext(), Encrypted);
 
-      errs() << "\n\n";
+      GV.setInitializer(NewInitializer);
+
+      errs() << "Replaced string: " << GV.getName() << "\n";
     }
 
     return PreservedAnalyses::all();
