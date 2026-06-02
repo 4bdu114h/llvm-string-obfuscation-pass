@@ -1,0 +1,2 @@
+Hello World
+This string should be obfuscated
