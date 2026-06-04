@@ -1,0 +1,16 @@
+_Z13StringFromJniP7_JNIEnvP8_jobject
+_ZN7_JNIEnv12NewStringUTFEPKc
+JNI_OnLoad
+_ZN7_JNIEnv9FindClassEPKc
+_ZN7_JNIEnv15RegisterNativesEP7_jclassPK15JNINativeMethodi
+stringFromJNI
+()Ljava/lang/String;
+com/example/hellojni/HelloJni
+Hello from JNI.
+hello-jni.cpp
+_ZZ10JNI_OnLoadE7methods
+_Z13StringFromJniP7_JNIEnvP8_jobject
+_ZN7_JNIEnv12NewStringUTFEPKc
+JNI_OnLoad
+_ZN7_JNIEnv9FindClassEPKc
+_ZN7_JNIEnv15RegisterNativesEP7_jclassPK15JNINativeMethodi
