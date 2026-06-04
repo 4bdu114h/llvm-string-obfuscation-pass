@@ -38,9 +38,11 @@ public:
 
     Type *PtrTy = PointerType::get(Ctx, 0);
 
-    FunctionType *DecodeTy = FunctionType::get(PtrTy, {PtrTy}, false);
+    FunctionType *DecodeTy =
+        FunctionType::get(PtrTy, {PtrTy}, false);
 
-    FunctionCallee DecodeFunc = M.getOrInsertFunction("decode", DecodeTy);
+    FunctionCallee DecodeFunc =
+        M.getOrInsertFunction("decode", DecodeTy);
 
     for (GlobalVariable &GV : M.globals()) {
 
@@ -57,16 +59,32 @@ public:
       if (!DataArray->isString())
         continue;
 
+      bool HasInstructionUser = false;
+
+      for (User *U : GV.users()) {
+        if (isa<Instruction>(U)) {
+          HasInstructionUser = true;
+          break;
+        }
+      }
+
+      if (!HasInstructionUser) {
+        errs() << "Skipping aggregate-only string: "
+               << GV.getName() << "\n";
+        continue;
+      }
+
       StringRef Original = DataArray->getAsString();
 
       auto Encrypted = encryptString(Original);
 
       Constant *NewInitializer =
-          ConstantDataArray::get(M.getContext(), Encrypted);
+          ConstantDataArray::get(Ctx, Encrypted);
 
       GV.setInitializer(NewInitializer);
 
-      errs() << "Replaced string: " << GV.getName() << "\n";
+      errs() << "Replaced string: "
+             << GV.getName() << "\n";
 
       for (User *U : GV.users()) {
 
@@ -75,25 +93,26 @@ public:
         if (!Inst)
           continue;
 
-        errs() << "Instruction found:\n";
-        errs() << *Inst << "\n";
-
         IRBuilder<> Builder(Inst);
 
-        Value *StrPtr = Builder.CreateBitCast(&GV, PointerType::get(Ctx, 0));
+        Value *StrPtr =
+            Builder.CreateBitCast(&GV, PtrTy);
 
         Value *Decoded =
-            Builder.CreateCall(DecodeFunc, {StrPtr}, "decoded_str");
+            Builder.CreateCall(
+                DecodeFunc,
+                {StrPtr},
+                "decoded_str");
 
         if (auto *Call = dyn_cast<CallInst>(Inst)) {
 
-          for (unsigned i = 0; i < Call->arg_size(); i++) {
+          for (unsigned i = 0;
+               i < Call->arg_size();
+               i++) {
 
             if (Call->getArgOperand(i) == &GV) {
 
               Call->setArgOperand(i, Decoded);
-
-              errs() << "Replaced call argument\n";
             }
           }
         }
@@ -106,18 +125,24 @@ public:
 
 } // namespace
 
-extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo llvmGetPassPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "StringObfuscationPass", LLVM_VERSION_STRING,
-          [](PassBuilder &PB) {
-            PB.registerPipelineParsingCallback(
-                [](StringRef Name, ModulePassManager &MPM,
-                   ArrayRef<PassBuilder::PipelineElement>) {
-                  if (Name == "string-obfuscation") {
-                    MPM.addPass(StringObfuscationPass());
-                    return true;
-                  }
+extern "C" LLVM_ATTRIBUTE_WEAK
+PassPluginLibraryInfo llvmGetPassPluginInfo() {
+  return {
+      LLVM_PLUGIN_API_VERSION,
+      "StringObfuscationPass",
+      LLVM_VERSION_STRING,
+      [](PassBuilder &PB) {
+        PB.registerPipelineParsingCallback(
+            [](StringRef Name,
+               ModulePassManager &MPM,
+               ArrayRef<PassBuilder::PipelineElement>) {
 
-                  return false;
-                });
-          }};
+              if (Name == "string-obfuscation") {
+                MPM.addPass(StringObfuscationPass());
+                return true;
+              }
+
+              return false;
+            });
+      }};
 }
