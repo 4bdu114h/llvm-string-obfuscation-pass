@@ -1,0 +1,72 @@
+diff --git a/hello-jni/app/src/main/cpp/CMakeLists.txt b/hello-jni/app/src/main/cpp/CMakeLists.txt
+index b165c1a9..f255e5e2 100644
+--- a/hello-jni/app/src/main/cpp/CMakeLists.txt
++++ b/hello-jni/app/src/main/cpp/CMakeLists.txt
+@@ -4,8 +4,58 @@ project("hello-jni" LANGUAGES CXX)
+ include(AppLibrary)
+ find_package(base CONFIG REQUIRED)
+ 
+-add_app_library(hello-jni SHARED
+-    hello-jni.cpp
++set(PASS_PLUGIN
++    "/Users/abdullahqureshi/Desktop/llvm-string-obfuscation-pass/pass/build/StringObfuscationPass.so"
++)
++
++set(LLVM_OPT
++    "/opt/homebrew/opt/llvm@18/bin/opt"
++)
++
++set(OBFUSCATED_OBJ
++    "${CMAKE_CURRENT_BINARY_DIR}/hello-jni-obfuscated.o"
++)
++
++add_custom_command(
++    OUTPUT ${OBFUSCATED_OBJ}
++
++    COMMAND ${CMAKE_CXX_COMPILER}
++        --target=aarch64-none-linux-android21
++        --sysroot=${CMAKE_SYSROOT}
++-isystem
++/Users/abdullahqureshi/Desktop/android-obfuscation-demo/ndk-samples/base/src/main/cpp/include
++        -DANDROID
++        -fPIC
++        -S
++        -emit-llvm
++        ${CMAKE_CURRENT_SOURCE_DIR}/hello-jni.cpp
++        -o
++        ${CMAKE_CURRENT_BINARY_DIR}/hello-jni.ll
++
++    COMMAND ${LLVM_OPT}
++        -load-pass-plugin
++        ${PASS_PLUGIN}
++        -passes=string-obfuscation
++        -S
++        ${CMAKE_CURRENT_BINARY_DIR}/hello-jni.ll
++        -o
++        ${CMAKE_CURRENT_BINARY_DIR}/hello-jni-obfuscated.ll
++
++    COMMAND ${CMAKE_CXX_COMPILER}
++        --target=aarch64-none-linux-android21
++        --sysroot=${CMAKE_SYSROOT}
++        -c
++        ${CMAKE_CURRENT_BINARY_DIR}/hello-jni-obfuscated.ll
++        -o
++        ${OBFUSCATED_OBJ}
++
++    DEPENDS
++        hello-jni.cpp
++)
++
++add_library(hello-jni SHARED
++    decode.cpp
++    ${OBFUSCATED_OBJ}
+ )
+ 
+ target_link_libraries(hello-jni
+@@ -13,4 +63,4 @@ target_link_libraries(hello-jni
+     base::base
+     android
+     log
+-)
++)
+\ No newline at end of file
